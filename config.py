@@ -1,12 +1,9 @@
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+# Database
+DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///products.db')
 
-# Database connection (Render or Neon DB)
-SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
-
-# Cloudinary configuration
-CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
-API_KEY = os.getenv("CLOUDINARY_API_KEY")
-API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+# Cloudinary
+CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', 'your_cloud_name')
+API_KEY = os.environ.get('CLOUDINARY_API_KEY', 'your_api_key')
+API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', 'your_api_secret')

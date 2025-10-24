@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session
 from models import db, Product
 import cloudinary
 import cloudinary.uploader
@@ -6,87 +6,108 @@ import os
 import config
 
 app = Flask(__name__)
+app.secret_key = 'supersecretkey'
 
-# Database setup
-app.config['SQLALCHEMY_DATABASE_URI'] = config.SQLALCHEMY_DATABASE_URI
+# Database
+app.config['SQLALCHEMY_DATABASE_URI'] = config.DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
-# Cloudinary setup
+# Cloudinary
 cloudinary.config(
     cloud_name=config.CLOUD_NAME,
     api_key=config.API_KEY,
     api_secret=config.API_SECRET
 )
 
-# ✅ Create tables when app starts (Flask 3.x compatible)
+# Create tables
 with app.app_context():
     db.create_all()
 
+# ------------------ AUTH ------------------ #
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        if username == 'Aquib' and password == 'Aquib786':
+            session['admin_logged_in'] = True
+            return redirect(url_for('admin'))
+        else:
+            return render_template('login.html', error="Invalid credentials")
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.pop('admin_logged_in', None)
+    return redirect(url_for('login'))
+
+# ------------------ ROUTES ------------------ #
 @app.route('/')
 def index():
     products = Product.query.all()
     return render_template('index.html', products=products)
 
+@app.route('/product/<int:id>')
+def product_detail(id):
+    product = Product.query.get_or_404(id)
+    related = Product.query.filter(Product.category==product.category, Product.id!=id).limit(4).all()
+    return render_template('product_detail.html', product=product, related=related)
+
 @app.route('/admin')
 def admin():
+    if not session.get('admin_logged_in'):
+        return redirect(url_for('login'))
     products = Product.query.all()
     return render_template('admin.html', products=products)
 
 @app.route('/add', methods=['POST'])
 def add_product():
+    if not session.get('admin_logged_in'):
+        return redirect(url_for('login'))
     name = request.form['name']
     category = request.form['category']
     price = request.form['price']
     description = request.form['description']
     image = request.files['image']
-
-    # Upload to Cloudinary
     upload_result = cloudinary.uploader.upload(image)
     image_url = upload_result['secure_url']
-
-    product = Product(
-        name=name,
-        category=category,
-        price=price,
-        description=description,
-        image_url=image_url
-    )
+    product = Product(name=name, category=category, price=price, description=description, image_url=image_url)
     db.session.add(product)
-    db.session.commit()
-    return redirect(url_for('admin'))
-
-@app.route('/delete/<int:id>')
-def delete_product(id):
-    product = Product.query.get_or_404(id)
-    db.session.delete(product)
     db.session.commit()
     return redirect(url_for('admin'))
 
 @app.route('/edit/<int:id>', methods=['GET', 'POST'])
 def edit_product(id):
+    if not session.get('admin_logged_in'):
+        return redirect(url_for('login'))
     product = Product.query.get_or_404(id)
     if request.method == 'POST':
         product.name = request.form['name']
         product.category = request.form['category']
         product.price = request.form['price']
         product.description = request.form['description']
-
         image = request.files.get('image')
         if image:
             upload_result = cloudinary.uploader.upload(image)
             product.image_url = upload_result['secure_url']
-
         db.session.commit()
         return redirect(url_for('admin'))
     return render_template('edit.html', product=product)
 
+@app.route('/delete/<int:id>')
+def delete_product(id):
+    if not session.get('admin_logged_in'):
+        return redirect(url_for('login'))
+    product = Product.query.get_or_404(id)
+    db.session.delete(product)
+    db.session.commit()
+    return redirect(url_for('admin'))
+
+# ------------------ RUN APP ------------------ #
 if __name__ == '__main__':
-    # Bind to host/port from environment for compatibility with platforms
-    # like Render or Docker. Default to 0.0.0.0:5000 for local dev.
     port = int(os.environ.get('PORT', 5000))
     host = os.environ.get('HOST', '0.0.0.0')
-    # Allow controlling debug via FLASK_DEBUG env (1 or 0)
     debug_env = os.environ.get('FLASK_DEBUG')
     if debug_env is not None:
         debug = debug_env in ('1', 'true', 'True')
