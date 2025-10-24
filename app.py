@@ -82,4 +82,14 @@ def edit_product(id):
     return render_template('edit.html', product=product)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Bind to host/port from environment for compatibility with platforms
+    # like Render or Docker. Default to 0.0.0.0:5000 for local dev.
+    port = int(os.environ.get('PORT', 5000))
+    host = os.environ.get('HOST', '0.0.0.0')
+    # Allow controlling debug via FLASK_DEBUG env (1 or 0)
+    debug_env = os.environ.get('FLASK_DEBUG')
+    if debug_env is not None:
+        debug = debug_env in ('1', 'true', 'True')
+    else:
+        debug = True
+    app.run(host=host, port=port, debug=debug)
